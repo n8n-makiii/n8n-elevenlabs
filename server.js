@@ -6,10 +6,11 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const morgan = require('morgan');
 
-const app = express();
-app.use(morgan('tiny'));
+app.use((req, _res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  next();
+});
 
 // ----- ENV -----
 const PORT = process.env.PORT || 10000;
