@@ -13,10 +13,10 @@ app.use(morgan('tiny'));
 
 // ----- ENV -----
 const PORT = process.env.PORT || 10000;
-const PORT = process.env.PORT || 10000;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
-const ELEVENLABS_REALTIME_URL = process.env.ELEVENLABS_REALTIME_URL || 'wss://api.elevenlabs.io/v1/convai/stream';
+const ELEVENLABS_REALTIME_URL =
+  process.env.ELEVENLABS_REALTIME_URL || 'wss://api.elevenlabs.io/v1/convai/stream';
 
 if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
   console.warn(
