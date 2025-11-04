@@ -36,31 +36,32 @@ app.get('/twilio-media', (_req, res) => res.status(200).send('WS endpoint mounte
 // ----- DIAGNOSTIC ROUTE (check ElevenLabs auth) -----
 app.get('/diag/elevenlabs-agent', async (_req, res) => {
   try {
-    const https = require('https');
-    const url = `https://api.us.elevenlabs.io/v1/agents/${(process.env.ELEVENLABS_AGENT_ID || '').trim()}`;
-    const req = https.request(url, {
-      method: 'GET',
-      headers: { 'xi-api-key': (process.env.ELEVENLABS_API_KEY || '').trim() },
-    }, (resp) => {
-      let body = '';
-      resp.on('data', (d) => (body += d));
-      resp.on('end', () => {
-        res.status(resp.statusCode || 500).send({
-          status: resp.statusCode,
-          body: safeTryJSON(body),
-        });
+    const agentId = (process.env.ELEVENLABS_AGENT_ID || '').trim();
+    const apiKey  = (process.env.ELEVENLABS_API_KEY  || '').trim();
+
+    if (!agentId || !apiKey) {
+      return res.status(400).json({
+        error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY missing',
       });
+    }
+
+    // Use the Convai Agents endpoint (no region prefix)
+    const url = `https://api.elevenlabs.io/v1/convai/agents/${agentId}`;
+
+    const r = await fetch(url, {
+      method: 'GET',
+      headers: { 'xi-api-key': apiKey },
     });
-    req.on('error', (e) => res.status(500).send({ error: e.message }));
-    req.end();
+
+    const text = await r.text();
+    let body;
+    try { body = JSON.parse(text); } catch { body = text; }
+
+    res.status(r.status).json({ status: r.status, body });
   } catch (e) {
-    res.status(500).send({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 });
-
-function safeTryJSON(s) {
-  try { return JSON.parse(s); } catch { return s; }
-}
 
 // ----- HTTP SERVER -----
 const server = http.createServer(app);
