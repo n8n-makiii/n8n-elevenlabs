@@ -33,6 +33,35 @@ app.get('/', (_req, res) => res.status(200).send('Bridge is running ✅'));
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true, ts: Date.now() }));
 app.get('/twilio-media', (_req, res) => res.status(200).send('WS endpoint mounted ✅'));
 
+// ----- DIAGNOSTIC ROUTE (check ElevenLabs auth) -----
+app.get('/diag/elevenlabs-agent', async (_req, res) => {
+  try {
+    const https = require('https');
+    const url = `https://api.us.elevenlabs.io/v1/agents/${(process.env.ELEVENLABS_AGENT_ID || '').trim()}`;
+    const req = https.request(url, {
+      method: 'GET',
+      headers: { 'xi-api-key': (process.env.ELEVENLABS_API_KEY || '').trim() },
+    }, (resp) => {
+      let body = '';
+      resp.on('data', (d) => (body += d));
+      resp.on('end', () => {
+        res.status(resp.statusCode || 500).send({
+          status: resp.statusCode,
+          body: safeTryJSON(body),
+        });
+      });
+    });
+    req.on('error', (e) => res.status(500).send({ error: e.message }));
+    req.end();
+  } catch (e) {
+    res.status(500).send({ error: e.message });
+  }
+});
+
+function safeTryJSON(s) {
+  try { return JSON.parse(s); } catch { return s; }
+}
+
 // ----- HTTP SERVER -----
 const server = http.createServer(app);
 
