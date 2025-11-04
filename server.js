@@ -22,7 +22,10 @@ const ELEVENLABS_REALTIME_URL =
   process.env.ELEVENLABS_REALTIME_URL || 'wss://api.elevenlabs.io/v1/convai/stream';
 
 if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
-  console.warn('[WARN] Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID.');
+  console.warn(
+    '[WARN] Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID. ' +
+      'Upstream connection will fail until set.'
+  );
 }
 
 // ----- HEALTH ROUTES -----
