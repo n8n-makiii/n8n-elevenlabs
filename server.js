@@ -23,8 +23,7 @@ const ELEVENLABS_REALTIME_URL =
 
 if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
   console.warn(
-    '[WARN] Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID. ' +
-      'Upstream connection will fail until set.'
+    '[WARN] Missing ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID. Upstream connection will fail until set.'
   );
 }
 
@@ -37,27 +36,18 @@ app.get('/twilio-media', (_req, res) => res.status(200).send('WS endpoint mounte
 app.get('/diag/elevenlabs-agent', async (_req, res) => {
   try {
     const agentId = (process.env.ELEVENLABS_AGENT_ID || '').trim();
-    const apiKey = (process.env.ELEVENLABS_API_KEY || '').trim();
+    const apiKey  = (process.env.ELEVENLABS_API_KEY  || '').trim();
 
     if (!agentId || !apiKey) {
-      return res.status(400).json({
-        error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY missing',
-      });
+      return res.status(400).json({ error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY missing' });
     }
 
     const url = `https://api.elevenlabs.io/v1/convai/agents/${agentId}`;
-    const r = await fetch(url, {
-      method: 'GET',
-      headers: { 'xi-api-key': apiKey },
-    });
+    const r = await fetch(url, { method: 'GET', headers: { 'xi-api-key': apiKey } });
 
     const text = await r.text();
     let body;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = text;
-    }
+    try { body = JSON.parse(text); } catch { body = text; }
 
     res.status(r.status).json({ status: r.status, body });
   } catch (e) {
@@ -68,8 +58,8 @@ app.get('/diag/elevenlabs-agent', async (_req, res) => {
 // ----- HTTP SERVER -----
 const server = http.createServer(app);
 server.keepAliveTimeout = 120000;
-server.headersTimeout = 125000;
-server.requestTimeout = 0;
+server.headersTimeout  = 125000;
+server.requestTimeout  = 0;
 
 // ----- WS SERVER (Twilio connects here) -----
 const wss = new WebSocket.Server({ server, path: '/twilio-media' });
@@ -77,12 +67,8 @@ const PING_INTERVAL_MS = 20000;
 
 function attachKeepAlive(ws, label) {
   ws.isAlive = true;
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
-  ws.on('close', () => {
-    ws.isAlive = false;
-  });
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('close', () => { ws.isAlive = false; });
   console.log(`[KA] keep-alive armed for ${label}`);
 }
 
@@ -90,15 +76,11 @@ setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.isAlive === false) {
       console.log('[KA] terminating dead Twilio ws');
-      try {
-        ws.terminate();
-      } catch (_) {}
+      try { ws.terminate(); } catch (_) {}
       continue;
     }
     ws.isAlive = false;
-    try {
-      ws.ping();
-    } catch (_) {}
+    try { ws.ping(); } catch (_) {}
   }
 }, PING_INTERVAL_MS);
 
@@ -107,21 +89,13 @@ function attachUpstreamKeepAlive(upstream) {
   upstream.on('pong', () => (upstream.isAlive = true));
   const iv = setInterval(() => {
     if (upstream.readyState === WebSocket.OPEN) {
-      try {
-        upstream.ping();
-      } catch (_) {}
+      try { upstream.ping(); } catch (_) {}
     }
   }, PING_INTERVAL_MS);
   upstream.on('close', () => clearInterval(iv));
 }
 
-const safeJSON = (s) => {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-};
+const safeJSON = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
 // ----- MAIN WS HANDLER -----
 wss.on('connection', (twilioWS, req) => {
@@ -131,39 +105,32 @@ wss.on('connection', (twilioWS, req) => {
   let elWS = null;
   let streamSid = null;
 
-  // ✅ REPLACED connectUpstream() block
+  // Connect to ElevenLabs realtime (telephony) with provider=twilio
   function connectUpstream() {
-    if (
-      elWS &&
-      (elWS.readyState === WebSocket.OPEN ||
-        elWS.readyState === WebSocket.CONNECTING)
-    ) {
+    if (elWS && (elWS.readyState === WebSocket.OPEN || elWS.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const url = `${ELEVENLABS_REALTIME_URL}?agent_id=${encodeURIComponent(
-      ELEVENLABS_AGENT_ID
-    )}`;
+    const qp = new URLSearchParams({
+      agent_id: ELEVENLABS_AGENT_ID,
+      provider: 'twilio',
+    });
+
+    const url = `${ELEVENLABS_REALTIME_URL}?${qp.toString()}`;
     console.log('[EL] Connecting to:', url);
 
     elWS = new WebSocket(url, {
-      headers: {
-        'xi-api-key': (ELEVENLABS_API_KEY || '').trim(),
-        'Origin': 'https://api.us.elevenlabs.io', // critical for auth
-        'User-Agent': 'n8n-elevenlabs-bridge/1.0',
-      },
+      headers: { 'xi-api-key': (ELEVENLABS_API_KEY || '').trim() },
     });
 
-    // ✅ If 403 or other handshake failure happens, log status & headers
+    // Log WS handshake failures (e.g., 403) for debugging
     elWS.on('unexpected-response', (_req, res) => {
       console.error('[EL] unexpected-response', res.statusCode, res.statusMessage);
       console.error('[EL] headers:', res.headers);
     });
 
     elWS.on('open', () => console.log('[EL] Connected to ElevenLabs'));
-    elWS.on('close', (code, reason) =>
-      console.log(`[EL] Closed ${code} ${reason || ''}`.trim())
-    );
+    elWS.on('close', (code, reason) => console.log(`[EL] Closed ${code} ${reason || ''}`.trim()));
     elWS.on('error', (err) => console.error('[EL] Error:', err.message));
 
     attachUpstreamKeepAlive(elWS);
@@ -183,15 +150,14 @@ wss.on('connection', (twilioWS, req) => {
         break;
 
       case 'media':
+        // (Place audio forwarding here if/when you implement it)
         break;
 
       case 'stop':
         console.log(`[Twilio] stream stopped: ${streamSid}`);
         streamSid = null;
         if (elWS && elWS.readyState === WebSocket.OPEN) {
-          try {
-            elWS.close(1000, 'twilio stop');
-          } catch (_) {}
+          try { elWS.close(1000, 'twilio stop'); } catch (_) {}
         }
         elWS = null;
         break;
@@ -204,16 +170,12 @@ wss.on('connection', (twilioWS, req) => {
   twilioWS.on('close', (code, reason) => {
     console.log(`[Twilio] WS closed ${code} ${reason || ''}`.trim());
     if (elWS && elWS.readyState === WebSocket.OPEN) {
-      try {
-        elWS.close(1000, 'twilio disconnect');
-      } catch (_) {}
+      try { elWS.close(1000, 'twilio disconnect'); } catch (_) {}
     }
     elWS = null;
   });
 
-  twilioWS.on('error', (err) =>
-    console.error('[Twilio] WS error:', err.message)
-  );
+  twilioWS.on('error', (err) => console.error('[Twilio] WS error:', err.message));
 });
 
 // ----- START -----
@@ -222,9 +184,5 @@ server.listen(PORT, () => {
   console.log(`Health: GET /  | WS path: /twilio-media`);
 });
 
-process.on('uncaughtException', (e) =>
-  console.error('[uncaughtException]', e)
-);
-process.on('unhandledRejection', (r) =>
-  console.error('[unhandledRejection]', r)
-);
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
+process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
